@@ -18,6 +18,13 @@
       }
     },
     {
+      "source": "/:alias([a-zA-Z0-9_-]+)",
+      "destination": {
+      "service": "backend",
+      "path": "/api/redirect/:alias"
+    }
+    },
+    {
       "source": "/(.*)",
       "destination": {
         "service": "frontend"
