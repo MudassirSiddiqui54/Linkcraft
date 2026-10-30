@@ -1,91 +1,1320 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import QRCode from 'qrcode';
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Activity, ArrowDownRight, ArrowUpRight, BarChart3, Check, ChevronDown, ChevronRight, CircleHelp, Copy, ExternalLink, Globe2, Link2, LoaderCircle, LockKeyhole, Menu, MoreHorizontal, Plus, QrCode, Search, Settings2, ShieldCheck, Smartphone, Trash2, TrendingUp, X } from 'lucide-react';
-import { api, messageFromError, ownerHeaders, ownersHeader, removeOwner, saveOwner, savedOwners } from '../lib/api.js';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	ResponsiveContainer,
+	Tooltip,
+	XAxis,
+	YAxis,
+} from "recharts";
+import {
+	Activity,
+	ArrowDownRight,
+	ArrowUpRight,
+	BarChart3,
+	Check,
+	ChevronDown,
+	ChevronRight,
+	CircleHelp,
+	Copy,
+	ExternalLink,
+	Globe2,
+	Link2,
+	LoaderCircle,
+	LockKeyhole,
+	Menu,
+	MoreHorizontal,
+	Plus,
+	QrCode,
+	Search,
+	Settings2,
+	ShieldCheck,
+	Smartphone,
+	Trash2,
+	TrendingUp,
+	X,
+} from "lucide-react";
+import {
+	api,
+	messageFromError,
+	ownerHeaders,
+	ownersHeader,
+	removeOwner,
+	saveOwner,
+	savedOwners,
+} from "../lib/api.js";
 
-const fmt = n => new Intl.NumberFormat('en-US').format(n || 0);
-const shortDate = value => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-const initials = url => { try { return new URL(url).hostname.replace(/^www\./, '').slice(0, 2).toUpperCase(); } catch { return '↗'; } };
+const fmt = (n) => new Intl.NumberFormat("en-US").format(n || 0);
+const shortDate = (value) =>
+	new Date(value).toLocaleDateString(undefined, {
+		month: "short",
+		day: "numeric",
+	});
+const initials = (url) => {
+	try {
+		return new URL(url).hostname
+			.replace(/^www\./, "")
+			.slice(0, 2)
+			.toUpperCase();
+	} catch {
+		return "↗";
+	}
+};
 
 export default function App() {
-  const [links, setLinks] = useState([]), [loading, setLoading] = useState(true), [modal, setModal] = useState(''), [selected, setSelected] = useState(null), [analytics, setAnalytics] = useState(null), [search, setSearch] = useState(''), [toast, setToast] = useState(''), [error, setError] = useState(''), [mobileNav, setMobileNav] = useState(false);
-  const [form, setForm] = useState({ destination: '', alias: '', title: '', expiresAt: '' }), [saving, setSaving] = useState(false);
-  const [qrData, setQrData] = useState('');
-  const notify = useCallback(msg => { setToast(msg); window.setTimeout(() => setToast(''), 2600); }, []);
-  const loadLinks = useCallback(async () => { setLoading(true); try { const { data } = await api.get('/links', { headers: ownersHeader() }); setLinks(data.data.links); } catch (e) { setError(messageFromError(e)); } finally { setLoading(false); } }, []);
-  useEffect(() => { loadLinks(); }, [loadLinks]);
-  const totalClicks = useMemo(() => links.reduce((sum, x) => sum + x.totalClicks, 0), [links]);
-  const activeLinks = links.filter(x => x.enabled && !x.expired).length;
-  const filtered = links.filter(x => `${x.title} ${x.alias} ${x.destination}`.toLowerCase().includes(search.toLowerCase()));
+	const [links, setLinks] = useState([]),
+		[loading, setLoading] = useState(true),
+		[modal, setModal] = useState(""),
+		[selected, setSelected] = useState(null),
+		[analytics, setAnalytics] = useState(null),
+		[search, setSearch] = useState(""),
+		[toast, setToast] = useState(""),
+		[error, setError] = useState(""),
+		[mobileNav, setMobileNav] = useState(false);
+	const [form, setForm] = useState({
+			destination: "",
+			alias: "",
+			title: "",
+			expiresAt: "",
+		}),
+		[saving, setSaving] = useState(false);
+	const [qrData, setQrData] = useState("");
+	const notify = useCallback((msg) => {
+		setToast(msg);
+		window.setTimeout(() => setToast(""), 2600);
+	}, []);
+	const loadLinks = useCallback(async () => {
+		setLoading(true);
+		try {
+			const { data } = await api.get("/links", {
+				headers: ownersHeader(),
+			});
+			setLinks(data.data.links);
+		} catch (e) {
+			setError(messageFromError(e));
+		} finally {
+			setLoading(false);
+		}
+	}, []);
+	useEffect(() => {
+		loadLinks();
+	}, [loadLinks]);
+	const totalClicks = useMemo(
+		() => links.reduce((sum, x) => sum + x.totalClicks, 0),
+		[links],
+	);
+	const activeLinks = links.filter((x) => x.enabled && !x.expired).length;
+	const filtered = links.filter((x) =>
+		`${x.title} ${x.alias} ${x.destination}`
+			.toLowerCase()
+			.includes(search.toLowerCase()),
+	);
 
-  async function createLink(e) {
-    e.preventDefault(); setError(''); setSaving(true);
-    try {
-      const payload = { ...form, expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null };
-      const { data } = await api.post('/links', payload);
-      const { link, ownerToken } = data.data; saveOwner(link.alias, ownerToken); setLinks(prev => [link, ...prev]); setSelected(link); setModal('created'); setForm({ destination: '', alias: '', title: '', expiresAt: '' });
-    } catch (e) { setError(messageFromError(e)); } finally { setSaving(false); }
-  }
-  async function openAnalytics(link) {
-    setSelected(link); setAnalytics(null); setModal('analytics'); setError('');
-    try { const { data } = await api.get(`/links/${link.alias}/analytics`, { headers: ownerHeaders(link.alias) }); setAnalytics(data.data); }
-    catch (e) { setError(messageFromError(e)); }
-  }
-  async function toggleLink(link) {
-    try { const { data } = await api.patch(`/links/${link.alias}`, { enabled: !link.enabled }, { headers: ownerHeaders(link.alias) }); setLinks(p => p.map(x => x.alias === link.alias ? data.data.link : x)); notify(data.data.link.enabled ? 'Link enabled' : 'Link disabled'); }
-    catch (e) { setError(messageFromError(e)); }
-  }
-  async function deleteLink(link) {
-    if (!window.confirm(`Delete ${link.alias}? Its click analytics will also be deleted.`)) return;
-    try { await api.delete(`/links/${link.alias}`, { headers: ownerHeaders(link.alias) }); removeOwner(link.alias); setLinks(p => p.filter(x => x.alias !== link.alias)); if (selected?.alias === link.alias) setModal(''); notify('Link deleted'); }
-    catch (e) { setError(messageFromError(e)); }
-  }
-  async function copy(text, label = 'Copied to clipboard') { try { await navigator.clipboard.writeText(text); notify(label); } catch { notify('Clipboard unavailable. Select and copy the link manually.'); } }
-  async function showQR(link) { setSelected(link); try { setQrData(await QRCode.toDataURL(link.shortUrl, { width: 320, margin: 2, color: { dark: '#11131a', light: '#ffffff' }, errorCorrectionLevel: 'H' })); setModal('qr'); } catch { setError('Could not generate QR code.'); } }
-  async function saveEdit(e) {
-    e.preventDefault(); if (!selected) return; setSaving(true); setError('');
-    const payload = { destination: form.destination, title: form.title, expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null };
-    try { const { data } = await api.patch(`/links/${selected.alias}`, payload, { headers: ownerHeaders(selected.alias) }); setLinks(p => p.map(x => x.alias === selected.alias ? data.data.link : x)); setSelected(data.data.link); setModal(''); notify('Link updated'); }
-    catch (e) { setError(messageFromError(e)); } finally { setSaving(false); }
-  }
-  function openEdit(link) { setSelected(link); setForm({ destination: link.destination, alias: link.alias, title: link.title || '', expiresAt: link.expiresAt ? new Date(link.expiresAt).toISOString().slice(0, 16) : '' }); setModal('edit'); setError(''); }
-  function exportKeys() { const blob = new Blob([JSON.stringify(savedOwners(), null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'linkcraft-recovery-keys.json'; a.click(); URL.revokeObjectURL(url); notify('Recovery keys exported'); }
+	async function createLink(e) {
+		e.preventDefault();
+		setError("");
+		setSaving(true);
+		try {
+			const payload = {
+				...form,
+				expiresAt: form.expiresAt
+					? new Date(form.expiresAt).toISOString()
+					: null,
+			};
+			const { data } = await api.post("/links", payload);
+			const { link, ownerToken } = data.data;
+			saveOwner(link.alias, ownerToken);
+			setLinks((prev) => [link, ...prev]);
+			setSelected(link);
+			setModal("created");
+			setForm({ destination: "", alias: "", title: "", expiresAt: "" });
+		} catch (e) {
+			setError(messageFromError(e));
+		} finally {
+			setSaving(false);
+		}
+	}
+	async function openAnalytics(link) {
+		setSelected(link);
+		setAnalytics(null);
+		setModal("analytics");
+		setError("");
+		try {
+			const { data } = await api.get(`/links/${link.alias}/analytics`, {
+				headers: ownerHeaders(link.alias),
+			});
+			setAnalytics(data.data);
+		} catch (e) {
+			setError(messageFromError(e));
+		}
+	}
+	async function toggleLink(link) {
+		try {
+			const { data } = await api.patch(
+				`/links/${link.alias}`,
+				{ enabled: !link.enabled },
+				{ headers: ownerHeaders(link.alias) },
+			);
+			setLinks((p) =>
+				p.map((x) => (x.alias === link.alias ? data.data.link : x)),
+			);
+			notify(data.data.link.enabled ? "Link enabled" : "Link disabled");
+		} catch (e) {
+			setError(messageFromError(e));
+		}
+	}
+	async function deleteLink(link) {
+		if (
+			!window.confirm(
+				`Delete ${link.alias}? Its click analytics will also be deleted.`,
+			)
+		)
+			return;
+		try {
+			await api.delete(`/links/${link.alias}`, {
+				headers: ownerHeaders(link.alias),
+			});
+			removeOwner(link.alias);
+			setLinks((p) => p.filter((x) => x.alias !== link.alias));
+			if (selected?.alias === link.alias) setModal("");
+			notify("Link deleted");
+		} catch (e) {
+			setError(messageFromError(e));
+		}
+	}
+	async function copy(text, label = "Copied to clipboard") {
+		try {
+			await navigator.clipboard.writeText(text);
+			notify(label);
+		} catch {
+			notify("Clipboard unavailable. Select and copy the link manually.");
+		}
+	}
+	async function showQR(link) {
+		setSelected(link);
+		try {
+			setQrData(
+				await QRCode.toDataURL(link.shortUrl, {
+					width: 320,
+					margin: 2,
+					color: { dark: "#11131a", light: "#ffffff" },
+					errorCorrectionLevel: "H",
+				}),
+			);
+			setModal("qr");
+		} catch {
+			setError("Could not generate QR code.");
+		}
+	}
+	async function saveEdit(e) {
+		e.preventDefault();
+		if (!selected) return;
+		setSaving(true);
+		setError("");
+		const payload = {
+			destination: form.destination,
+			title: form.title,
+			expiresAt: form.expiresAt
+				? new Date(form.expiresAt).toISOString()
+				: null,
+		};
+		try {
+			const { data } = await api.patch(
+				`/links/${selected.alias}`,
+				payload,
+				{ headers: ownerHeaders(selected.alias) },
+			);
+			setLinks((p) =>
+				p.map((x) => (x.alias === selected.alias ? data.data.link : x)),
+			);
+			setSelected(data.data.link);
+			setModal("");
+			notify("Link updated");
+		} catch (e) {
+			setError(messageFromError(e));
+		} finally {
+			setSaving(false);
+		}
+	}
+	function openEdit(link) {
+		setSelected(link);
+		setForm({
+			destination: link.destination,
+			alias: link.alias,
+			title: link.title || "",
+			expiresAt: link.expiresAt
+				? new Date(link.expiresAt).toISOString().slice(0, 16)
+				: "",
+		});
+		setModal("edit");
+		setError("");
+	}
+	function exportKeys() {
+		const blob = new Blob([JSON.stringify(savedOwners(), null, 2)], {
+			type: "application/json",
+		});
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = "linkcraft-recovery-keys.json";
+		a.click();
+		URL.revokeObjectURL(url);
+		notify("Recovery keys exported");
+	}
 
-  return <div className="app-shell">
-    <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
-      <div className="brand"><span className="brand-mark"><Link2 size={19}/></span><span>linkcraft<span className="brand-dot">.</span></span><button className="icon-btn mobile-close" onClick={() => setMobileNav(false)}><X size={18}/></button></div>
-      <div className="workspace"><div className="workspace-icon">M</div><div className="workspace-copy"><strong>My workspace</strong><span>Personal · Free</span></div><ChevronDown size={15} className="muted"/></div>
-      <div className="nav-label">WORKSPACE</div><button className="nav-item active"><BarChart3 size={17}/> Overview <span className="nav-count">{links.length}</span></button><button className="nav-item" onClick={() => { setModal('create'); setError(''); }}><Plus size={17}/> Create a link</button><button className="nav-item" onClick={exportKeys}><ShieldCheck size={17}/> Recovery keys</button>
-      <div className="nav-label nav-label-spaced">PREFERENCES</div><button className="nav-item" onClick={() => setModal('help')}><CircleHelp size={17}/> Help & security</button>
-      <div className="sidebar-bottom"><div className="usage-card"><div className="usage-head"><span>Link activity</span><Activity size={15}/></div><strong>{fmt(totalClicks)} <small>total clicks</small></strong><div className="usage-track"><span style={{ width: `${Math.min(100, links.length * 5)}%` }}/></div><p>{links.length} links created in this browser</p></div><div className="profile"><div className="avatar">MS</div><div className="profile-copy"><strong>Anonymous workspace</strong><span>No account required</span></div><MoreHorizontal size={18} className="muted"/></div></div>
-    </aside>
-    {mobileNav && <button className="mobile-scrim" onClick={() => setMobileNav(false)} aria-label="Close navigation"/>}
-    <main className="main-content">
-      <header className="topbar"><button className="icon-btn mobile-menu" onClick={() => setMobileNav(true)}><Menu size={20}/></button><div className="breadcrumb">Workspace <ChevronRight size={14}/> <strong>Overview</strong></div><div className="top-actions"><span className="status-pill"><span/> All systems operational</span><button className="icon-btn" title="Export recovery keys" onClick={exportKeys}><LockKeyhole size={17}/></button><div className="avatar avatar-small">MS</div></div></header>
-      <section className="page-wrap"><div className="page-heading"><div><div className="eyebrow"><span className="eyebrow-line"/> LINK MANAGEMENT</div><h1>Your links, <span>in focus.</span></h1><p className="subtitle">Create, share, and understand every click — all in one place.</p></div><button className="primary-btn" onClick={() => { setModal('create'); setError(''); }}><Plus size={17}/> Create link</button></div>
-        <div className="stats-grid"><Stat icon={<Link2 size={18}/>} label="Total links" value={fmt(links.length)} note="Across your workspace"/><Stat icon={<TrendingUp size={18}/>} label="Total clicks" value={fmt(totalClicks)} note="Lifetime tracked clicks"/><Stat icon={<Activity size={18}/>} label="Active links" value={fmt(activeLinks)} note="Ready to redirect"/><Stat icon={<Smartphone size={18}/>} label="QR ready" value={fmt(links.length)} note="Generate on demand"/></div>
-        <section className="links-panel"><div className="panel-head"><div><h2>Your links <span className="count-badge">{links.length}</span></h2><p>Manage your short links and track performance.</p></div><div className="panel-controls"><div className="search-box"><Search size={16}/><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search links..."/></div><button className="filter-btn" onClick={() => setSearch('')}><Settings2 size={16}/><span>Clear</span></button></div></div>
-          <div className="table-scroll"><table><thead><tr><th>LINK / DESTINATION</th><th>STATUS</th><th>CLICKS</th><th>CREATED</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-          {loading ? <tr><td colSpan="5" className="empty-state"><LoaderCircle className="spin" size={22}/> Loading your links…</td></tr> : filtered.length === 0 ? <tr><td colSpan="5" className="empty-state"><div className="empty-icon"><Link2 size={22}/></div><strong>{search ? 'No matching links' : 'Your workspace is clear'}</strong><span>{search ? 'Try a different search.' : 'Create your first short link to get started.'}</span>{!search && <button className="primary-btn small-btn" onClick={() => setModal('create')}><Plus size={15}/> Create your first link</button>}</td></tr> : filtered.map(link => <tr key={link.alias}><td><div className="link-cell"><div className="favicon-box">{initials(link.destination)}</div><div className="link-meta"><button className="short-link" onClick={() => copy(link.shortUrl)}>{link.alias}<ExternalLink size={12}/></button><span className="destination" title={link.destination}>{link.destination}</span></div></div></td><td><span className={`badge ${!link.enabled || link.expired ? 'badge-muted' : 'badge-green'}`}><span/>{link.expired ? 'Expired' : link.enabled ? 'Active' : 'Disabled'}</span></td><td><strong className="click-count">{fmt(link.totalClicks)}</strong></td><td><span className="created-date">{shortDate(link.createdAt)}</span></td><td><div className="row-actions"><button className="icon-btn" title="Analytics" onClick={() => openAnalytics(link)}><BarChart3 size={16}/></button><button className="icon-btn" title="QR code" onClick={() => showQR(link)}><QrCode size={16}/></button><button className="icon-btn" title="Edit" onClick={() => openEdit(link)}><Settings2 size={16}/></button><button className="icon-btn danger-hover" title="Delete" onClick={() => deleteLink(link)}><Trash2 size={16}/></button></div></td></tr>)}</tbody></table></div>
-          <div className="table-footer"><span>Showing <strong>{filtered.length}</strong> of <strong>{links.length}</strong> links</span><button className="text-btn" onClick={exportKeys}><LockKeyhole size={14}/> Export recovery keys</button></div>
-        </section>
-        <div className="bottom-grid"><section className="tip-card"><div className="tip-icon"><ShieldCheck size={19}/></div><div><strong>Your links stay yours.</strong><p>Linkcraft uses private management keys instead of accounts. Export your recovery keys to keep access if you clear browser data.</p><button className="text-btn" onClick={exportKeys}>Back up recovery keys <ArrowUpRight size={14}/></button></div></section><section className="tip-card tip-card-secondary"><div className="tip-icon tip-icon-blue"><Globe2 size={19}/></div><div><strong>Understand your audience.</strong><p>Open any link's analytics to see click trends, referrers, devices, and browsers.</p><button className="text-btn" onClick={() => links[0] ? openAnalytics(links[0]) : setModal('help')}>Explore analytics <ArrowUpRight size={14}/></button></div></section></div>
-        <footer className="footer"><span>© 2026 Linkcraft</span><span><span className="footer-dot"/> Built for clarity, designed for speed.</span><span>Privacy-first analytics</span></footer>
-      </section>
-    </main>
-    {toast && <div className="toast"><Check size={16}/>{toast}</div>}
-    {error && <div className="error-toast"><X size={16}/><span>{error}</span><button onClick={() => setError('')}><X size={14}/></button></div>}
-    {modal && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) { setModal(''); setError(''); } }}><section className={`modal ${modal === 'analytics' ? 'modal-wide' : ''}`}>
-      <div className="modal-head"><div><div className="eyebrow"><span className="eyebrow-line"/> LINKCRAFT</div><h2>{modal === 'create' ? 'Create a short link' : modal === 'created' ? 'Your link is ready' : modal === 'edit' ? 'Edit link' : modal === 'analytics' ? 'Link analytics' : modal === 'qr' ? 'Share with QR' : 'Privacy & security'}</h2></div><button className="icon-btn" onClick={() => { setModal(''); setError(''); }}><X size={18}/></button></div>
-      {modal === 'create' && <form className="modal-form" onSubmit={createLink}><label>Destination URL <span>*</span><input type="url" required placeholder="https://example.com/your-page" value={form.destination} onChange={e => setForm({ ...form, destination: e.target.value })}/></label><label>Custom alias <small>OPTIONAL</small><div className="alias-input"><span>lnk/</span><input placeholder="my-awesome-link" minLength="4" maxLength="40" pattern="[a-zA-Z0-9_-]+" value={form.alias} onChange={e => setForm({ ...form, alias: e.target.value })}/></div><em>4–40 characters · letters, numbers, hyphens, underscores</em></label><label>Link name <small>OPTIONAL</small><input placeholder="Campaign or project name" maxLength="100" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}/></label><label>Expiry date <small>OPTIONAL</small><input type="datetime-local" min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })}/><em>After this date, the link will no longer redirect.</em></label><div className="form-note"><ShieldCheck size={17}/><span>No account required. A private management key is saved in this browser. Export your recovery keys for safekeeping.</span></div>{error && <p className="inline-error">{error}</p>}<button className="primary-btn modal-submit" disabled={saving}>{saving ? <LoaderCircle size={17} className="spin"/> : <Plus size={17}/>} {saving ? 'Creating…' : 'Create short link'}</button></form>}
-      {modal === 'created' && selected && <div className="created-content"><div className="success-mark"><Check size={24}/></div><p>Your short link has been created and is ready to share.</p><div className="created-url"><div><small>YOUR SHORT LINK</small><strong>{selected.shortUrl}</strong></div><button className="icon-btn" onClick={() => copy(selected.shortUrl)}><Copy size={17}/></button></div><div className="form-note warning-note"><LockKeyhole size={17}/><span><strong>Keep your recovery key safe.</strong> It is saved in this browser and cannot be recovered by us if you clear browser data. Export a backup from the sidebar.</span></div><div className="modal-actions"><button className="secondary-btn" onClick={() => showQR(selected)}><QrCode size={16}/> QR code</button><button className="primary-btn" onClick={() => { setModal(''); openAnalytics(selected); }}><BarChart3 size={16}/> View analytics</button></div></div>}
-      {modal === 'edit' && selected && <form className="modal-form" onSubmit={saveEdit}><label>Short URL<input value={selected.shortUrl} disabled/></label><label>Destination URL <span>*</span><input type="url" required value={form.destination} onChange={e => setForm({ ...form, destination: e.target.value })}/></label><label>Link name<input maxLength="100" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}/></label><label>Expiry date <small>OPTIONAL</small><input type="datetime-local" value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })}/><em>Leave empty to remove expiry.</em></label>{error && <p className="inline-error">{error}</p>}<button className="primary-btn modal-submit" disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button></form>}
-      {modal === 'qr' && selected && <div className="qr-content"><div className="qr-frame">{qrData && <img src={qrData} alt={`QR code for ${selected.shortUrl}`}/>}</div><strong>{selected.shortUrl}</strong><p>Scan to open this short link. The QR code never expires separately from the link.</p><button className="primary-btn full-btn" onClick={() => { const a = document.createElement('a'); a.href = qrData; a.download = `linkcraft-${selected.alias}-qr.png`; a.click(); }}>Download QR code <ArrowDownRight size={16}/></button></div>}
-      {modal === 'analytics' && <div className="analytics-content">{!analytics ? <div className="empty-state analytics-loading"><LoaderCircle className="spin" size={24}/><span>Loading analytics…</span></div> : <><div className="analytics-url"><div className="favicon-box">{initials(analytics.link.destination)}</div><div><strong>{analytics.link.alias}</strong><span>{analytics.link.destination}</span></div><button className="icon-btn" onClick={() => copy(analytics.link.shortUrl)}><Copy size={16}/></button></div><div className="analytics-kpis"><div><span>Clicks in last 30 days</span><strong>{fmt(analytics.clicksInRange)}</strong></div><div><span>All-time clicks</span><strong>{fmt(analytics.link.totalClicks)}</strong></div><div><span>Link status</span><strong className="kpi-status">{analytics.link.expired ? 'Expired' : analytics.link.enabled ? 'Active' : 'Disabled'}</strong></div></div><section className="chart-card"><div className="chart-head"><div><h3>Click activity</h3><p>Daily clicks over the last {analytics.rangeDays} days</p></div><span className="chart-legend"><i/> Clicks</span></div><div className="chart-area">{analytics.daily.length ? <ResponsiveContainer width="100%" height="100%"><AreaChart data={analytics.daily} margin={{ top: 12, right: 8, left: -18, bottom: 0 }}><defs><linearGradient id="clickFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#a78bfa" stopOpacity={0.28}/><stop offset="100%" stopColor="#a78bfa" stopOpacity={0.01}/></linearGradient></defs><CartesianGrid stroke="#292d39" strokeDasharray="3 4" vertical={false}/><XAxis dataKey="_id" tickFormatter={v => shortDate(v)} tick={{ fill: '#858a9b', fontSize: 11 }} axisLine={false} tickLine={false} minTickGap={24}/><YAxis allowDecimals={false} tick={{ fill: '#858a9b', fontSize: 11 }} axisLine={false} tickLine={false}/><Tooltip contentStyle={{ background: '#171a23', border: '1px solid #333746', borderRadius: 10, color: '#f4f5f7' }} labelFormatter={v => shortDate(v)} /><Area type="monotone" dataKey="clicks" stroke="#a78bfa" strokeWidth={2.5} fill="url(#clickFill)"/></AreaChart></ResponsiveContainer> : <div className="chart-empty">No clicks recorded in this period yet.</div>}</div></section><div className="breakdown-grid"><Breakdown title="Top referrers" rows={analytics.referrers} total={analytics.clicksInRange} icon={<Globe2 size={16}/>}/><Breakdown title="Devices" rows={analytics.devices} total={analytics.clicksInRange} icon={<Smartphone size={16}/>}/><Breakdown title="Browsers" rows={analytics.browsers} total={analytics.clicksInRange} icon={<Activity size={16}/>}/></div></>}</div>}
-      {modal === 'help' && <div className="help-content"><div className="form-note"><ShieldCheck size={18}/><span><strong>Private by design.</strong> Your links are not tied to an account. The browser keeps management keys locally, and the server stores only their SHA-256 hashes.</span></div><h3>Keep access to your links</h3><ol><li>Use <strong>Recovery keys</strong> in the sidebar to export a JSON backup.</li><li>Store that file somewhere private. Anyone with a key can manage its associated link.</li><li>To restore on another browser, import isn't implemented in this first version; you can keep the keys as a recovery record.</li></ol><h3>What analytics collect</h3><p>Click time, referrer hostname, device category and browser name. This implementation does not store raw IP addresses.</p><h3>Current limitations</h3><p>Link creation is rate-limited per IP rather than per user because anonymous visitors have no account identity. Production deployment should add a distributed rate-limit store, bot filtering and monitoring.</p><button className="primary-btn full-btn" onClick={() => setModal('')}>Got it</button></div>}
-    </section></div>}
-  </div>;
+	return (
+		<div className="app-shell">
+			<aside className={`sidebar ${mobileNav ? "sidebar-open" : ""}`}>
+				<div className="brand">
+					<span className="brand-mark">
+						<Link2 size={19} />
+					</span>
+					<span>
+						linkcraft<span className="brand-dot">.</span>
+					</span>
+					<button
+						className="icon-btn mobile-close"
+						onClick={() => setMobileNav(false)}
+					>
+						<X size={18} />
+					</button>
+				</div>
+				<div className="workspace">
+					<div className="workspace-icon">M</div>
+					<div className="workspace-copy">
+						<strong>My workspace</strong>
+						<span>Personal · Free</span>
+					</div>
+					<ChevronDown size={15} className="muted" />
+				</div>
+				<div className="nav-label">WORKSPACE</div>
+				<button className="nav-item active">
+					<BarChart3 size={17} /> Overview{" "}
+					<span className="nav-count">{links.length}</span>
+				</button>
+				<button
+					className="nav-item"
+					onClick={() => {
+						setModal("create");
+						setError("");
+					}}
+				>
+					<Plus size={17} /> Create a link
+				</button>
+				<button className="nav-item" onClick={exportKeys}>
+					<ShieldCheck size={17} /> Recovery keys
+				</button>
+				<div className="nav-label nav-label-spaced">PREFERENCES</div>
+				<button className="nav-item" onClick={() => setModal("help")}>
+					<CircleHelp size={17} /> Help & security
+				</button>
+				<div className="sidebar-bottom">
+					<div className="usage-card">
+						<div className="usage-head">
+							<span>Link activity</span>
+							<Activity size={15} />
+						</div>
+						<strong>
+							{fmt(totalClicks)} <small>total clicks</small>
+						</strong>
+						<div className="usage-track">
+							<span
+								style={{
+									width: `${Math.min(100, links.length * 5)}%`,
+								}}
+							/>
+						</div>
+						<p>{links.length} links created in this browser</p>
+					</div>
+					<div className="profile">
+						<div className="avatar">MS</div>
+						<div className="profile-copy">
+							<strong>Anonymous workspace</strong>
+							<span>No account required</span>
+						</div>
+						<MoreHorizontal size={18} className="muted" />
+					</div>
+				</div>
+			</aside>
+			{mobileNav && (
+				<button
+					className="mobile-scrim"
+					onClick={() => setMobileNav(false)}
+					aria-label="Close navigation"
+				/>
+			)}
+			<main className="main-content">
+				<header className="topbar">
+					<button
+						className="icon-btn mobile-menu"
+						onClick={() => setMobileNav(true)}
+					>
+						<Menu size={20} />
+					</button>
+					<div className="breadcrumb">
+						Workspace <ChevronRight size={14} />{" "}
+						<strong>Overview</strong>
+					</div>
+					<div className="top-actions">
+						<span className="status-pill">
+							<span /> All systems operational
+						</span>
+						<button
+							className="icon-btn"
+							title="Export recovery keys"
+							onClick={exportKeys}
+						>
+							<LockKeyhole size={17} />
+						</button>
+						<div className="avatar avatar-small">MS</div>
+					</div>
+				</header>
+				<section className="page-wrap">
+					<div className="page-heading">
+						<div>
+							<div className="eyebrow">
+								<span className="eyebrow-line" /> LINK
+								MANAGEMENT
+							</div>
+							<h1>
+								Your links, <span>in focus.</span>
+							</h1>
+							<p className="subtitle">
+								Create, share, and understand every click — all
+								in one place.
+							</p>
+						</div>
+						<button
+							className="primary-btn"
+							onClick={() => {
+								setModal("create");
+								setError("");
+							}}
+						>
+							<Plus size={17} /> Create link
+						</button>
+					</div>
+					<div className="stats-grid">
+						<Stat
+							icon={<Link2 size={18} />}
+							label="Total links"
+							value={fmt(links.length)}
+							note="Across your workspace"
+						/>
+						<Stat
+							icon={<TrendingUp size={18} />}
+							label="Total clicks"
+							value={fmt(totalClicks)}
+							note="Lifetime tracked clicks"
+						/>
+						<Stat
+							icon={<Activity size={18} />}
+							label="Active links"
+							value={fmt(activeLinks)}
+							note="Ready to redirect"
+						/>
+						<Stat
+							icon={<Smartphone size={18} />}
+							label="QR ready"
+							value={fmt(links.length)}
+							note="Generate on demand"
+						/>
+					</div>
+					<section className="links-panel">
+						<div className="panel-head">
+							<div>
+								<h2>
+									Your links{" "}
+									<span className="count-badge">
+										{links.length}
+									</span>
+								</h2>
+								<p>
+									Manage your short links and track
+									performance.
+								</p>
+							</div>
+							<div className="panel-controls">
+								<div className="search-box">
+									<Search size={16} />
+									<input
+										value={search}
+										onChange={(e) =>
+											setSearch(e.target.value)
+										}
+										placeholder="Search links..."
+									/>
+								</div>
+								<button
+									className="filter-btn"
+									onClick={() => setSearch("")}
+								>
+									<Settings2 size={16} />
+									<span>Clear</span>
+								</button>
+							</div>
+						</div>
+						<div className="table-scroll">
+							<table>
+								<thead>
+									<tr>
+										<th>LINK / DESTINATION</th>
+										<th>STATUS</th>
+										<th>CLICKS</th>
+										<th>CREATED</th>
+										<th>
+											<span className="sr-only">
+												Actions
+											</span>
+										</th>
+									</tr>
+								</thead>
+								<tbody>
+									{loading ? (
+										<tr>
+											<td
+												colSpan="5"
+												className="empty-state"
+											>
+												<LoaderCircle
+													className="spin"
+													size={22}
+												/>{" "}
+												Loading your links…
+											</td>
+										</tr>
+									) : filtered.length === 0 ? (
+										<tr>
+											<td
+												colSpan="5"
+												className="empty-state"
+											>
+												<div className="empty-icon">
+													<Link2 size={22} />
+												</div>
+												<strong>
+													{search
+														? "No matching links"
+														: "Your workspace is clear"}
+												</strong>
+												<span>
+													{search
+														? "Try a different search."
+														: "Create your first short link to get started."}
+												</span>
+												{!search && (
+													<button
+														className="primary-btn small-btn"
+														onClick={() =>
+															setModal("create")
+														}
+													>
+														<Plus size={15} />{" "}
+														Create your first link
+													</button>
+												)}
+											</td>
+										</tr>
+									) : (
+										filtered.map((link) => (
+											<tr key={link.alias}>
+												<td>
+													<div className="link-cell">
+														<div className="favicon-box">
+															{initials(
+																link.destination,
+															)}
+														</div>
+														<div className="link-meta">
+															<button
+																className="short-link"
+																onClick={() =>
+																	copy(
+																		link.shortUrl,
+																	)
+																}
+															>
+																{link.alias}
+																<ExternalLink
+																	size={12}
+																/>
+															</button>
+															<span
+																className="destination"
+																title={
+																	link.destination
+																}
+															>
+																{
+																	link.destination
+																}
+															</span>
+														</div>
+													</div>
+												</td>
+												<td>
+													<span
+														className={`badge ${!link.enabled || link.expired ? "badge-muted" : "badge-green"}`}
+													>
+														<span />
+														{link.expired
+															? "Expired"
+															: link.enabled
+																? "Active"
+																: "Disabled"}
+													</span>
+												</td>
+												<td>
+													<strong className="click-count">
+														{fmt(link.totalClicks)}
+													</strong>
+												</td>
+												<td>
+													<span className="created-date">
+														{shortDate(
+															link.createdAt,
+														)}
+													</span>
+												</td>
+												<td>
+													<div className="row-actions">
+														<button
+															className="icon-btn"
+															title="Analytics"
+															onClick={() =>
+																openAnalytics(
+																	link,
+																)
+															}
+														>
+															<BarChart3
+																size={16}
+															/>
+														</button>
+														<button
+															className="icon-btn"
+															title="QR code"
+															onClick={() =>
+																showQR(link)
+															}
+														>
+															<QrCode size={16} />
+														</button>
+														<button
+															className="icon-btn"
+															title="Edit"
+															onClick={() =>
+																openEdit(link)
+															}
+														>
+															<Settings2
+																size={16}
+															/>
+														</button>
+														<button
+															className="icon-btn danger-hover"
+															title="Delete"
+															onClick={() =>
+																deleteLink(link)
+															}
+														>
+															<Trash2 size={16} />
+														</button>
+													</div>
+												</td>
+											</tr>
+										))
+									)}
+								</tbody>
+							</table>
+						</div>
+						<div className="table-footer">
+							<span>
+								Showing <strong>{filtered.length}</strong> of{" "}
+								<strong>{links.length}</strong> links
+							</span>
+							<button className="text-btn" onClick={exportKeys}>
+								<LockKeyhole size={14} /> Export recovery keys
+							</button>
+						</div>
+					</section>
+					<div className="bottom-grid">
+						<section className="tip-card">
+							<div className="tip-icon">
+								<ShieldCheck size={19} />
+							</div>
+							<div>
+								<strong>Your links stay yours.</strong>
+								<p>
+									Linkcraft uses private management keys
+									instead of accounts. Export your recovery
+									keys to keep access if you clear browser
+									data.
+								</p>
+								<button
+									className="text-btn"
+									onClick={exportKeys}
+								>
+									Back up recovery keys{" "}
+									<ArrowUpRight size={14} />
+								</button>
+							</div>
+						</section>
+						<section className="tip-card tip-card-secondary">
+							<div className="tip-icon tip-icon-blue">
+								<Globe2 size={19} />
+							</div>
+							<div>
+								<strong>Understand your audience.</strong>
+								<p>
+									Open any link's analytics to see click
+									trends, referrers, devices, and browsers.
+								</p>
+								<button
+									className="text-btn"
+									onClick={() =>
+										links[0]
+											? openAnalytics(links[0])
+											: setModal("help")
+									}
+								>
+									Explore analytics <ArrowUpRight size={14} />
+								</button>
+							</div>
+						</section>
+					</div>
+					<footer className="footer">
+						<span>© 2026 Linkcraft</span>
+						<span>
+							<span className="footer-dot" /> Built for clarity,
+							designed for speed.
+						</span>
+						<span>Privacy-first analytics</span>
+					</footer>
+				</section>
+			</main>
+			{toast && (
+				<div className="toast">
+					<Check size={16} />
+					{toast}
+				</div>
+			)}
+			{error && (
+				<div className="error-toast">
+					<X size={16} />
+					<span>{error}</span>
+					<button onClick={() => setError("")}>
+						<X size={14} />
+					</button>
+				</div>
+			)}
+			{modal && (
+				<div
+					className="modal-backdrop"
+					onMouseDown={(e) => {
+						if (e.target === e.currentTarget) {
+							setModal("");
+							setError("");
+						}
+					}}
+				>
+					<section
+						className={`modal ${modal === "analytics" ? "modal-wide" : ""}`}
+					>
+						<div className="modal-head">
+							<div>
+								<div className="eyebrow">
+									<span className="eyebrow-line" /> LINKCRAFT
+								</div>
+								<h2>
+									{modal === "create"
+										? "Create a short link"
+										: modal === "created"
+											? "Your link is ready"
+											: modal === "edit"
+												? "Edit link"
+												: modal === "analytics"
+													? "Link analytics"
+													: modal === "qr"
+														? "Share with QR"
+														: "Privacy & security"}
+								</h2>
+							</div>
+							<button
+								className="icon-btn"
+								onClick={() => {
+									setModal("");
+									setError("");
+								}}
+							>
+								<X size={18} />
+							</button>
+						</div>
+						{modal === "create" && (
+							<form className="modal-form" onSubmit={createLink}>
+								<label>
+									Destination URL <span>*</span>
+									<input
+										type="url"
+										required
+										placeholder="https://example.com/your-page"
+										value={form.destination}
+										onChange={(e) =>
+											setForm({
+												...form,
+												destination: e.target.value,
+											})
+										}
+									/>
+								</label>
+								<label>
+									Custom alias <small>OPTIONAL</small>
+									<div className="alias-input">
+										<span>lnk/</span>
+										<input
+											placeholder="my-awesome-link"
+											minLength="4"
+											maxLength="40"
+											pattern="[-a-zA-Z0-9_]+"
+											value={form.alias}
+											onChange={(e) =>
+												setForm({
+													...form,
+													alias: e.target.value,
+												})
+											}
+										/>
+									</div>
+									<em>
+										4–40 characters · letters, numbers,
+										hyphens, underscores
+									</em>
+								</label>
+								<label>
+									Link name <small>OPTIONAL</small>
+									<input
+										placeholder="Campaign or project name"
+										maxLength="100"
+										value={form.title}
+										onChange={(e) =>
+											setForm({
+												...form,
+												title: e.target.value,
+											})
+										}
+									/>
+								</label>
+								<label>
+									Expiry date <small>OPTIONAL</small>
+									<input
+										type="datetime-local"
+										min={new Date(Date.now() + 60000)
+											.toISOString()
+											.slice(0, 16)}
+										value={form.expiresAt}
+										onChange={(e) =>
+											setForm({
+												...form,
+												expiresAt: e.target.value,
+											})
+										}
+									/>
+									<em>
+										After this date, the link will no longer
+										redirect.
+									</em>
+								</label>
+								<div className="form-note">
+									<ShieldCheck size={17} />
+									<span>
+										No account required. A private
+										management key is saved in this browser.
+										Export your recovery keys for
+										safekeeping.
+									</span>
+								</div>
+								{error && (
+									<p className="inline-error">{error}</p>
+								)}
+								<button
+									className="primary-btn modal-submit"
+									disabled={saving}
+								>
+									{saving ? (
+										<LoaderCircle
+											size={17}
+											className="spin"
+										/>
+									) : (
+										<Plus size={17} />
+									)}{" "}
+									{saving ? "Creating…" : "Create short link"}
+								</button>
+							</form>
+						)}
+						{modal === "created" && selected && (
+							<div className="created-content">
+								<div className="success-mark">
+									<Check size={24} />
+								</div>
+								<p>
+									Your short link has been created and is
+									ready to share.
+								</p>
+								<div className="created-url">
+									<div>
+										<small>YOUR SHORT LINK</small>
+										<strong>{selected.shortUrl}</strong>
+									</div>
+									<button
+										className="icon-btn"
+										onClick={() => copy(selected.shortUrl)}
+									>
+										<Copy size={17} />
+									</button>
+								</div>
+								<div className="form-note warning-note">
+									<LockKeyhole size={17} />
+									<span>
+										<strong>
+											Keep your recovery key safe.
+										</strong>{" "}
+										It is saved in this browser and cannot
+										be recovered by us if you clear browser
+										data. Export a backup from the sidebar.
+									</span>
+								</div>
+								<div className="modal-actions">
+									<button
+										className="secondary-btn"
+										onClick={() => showQR(selected)}
+									>
+										<QrCode size={16} /> QR code
+									</button>
+									<button
+										className="primary-btn"
+										onClick={() => {
+											setModal("");
+											openAnalytics(selected);
+										}}
+									>
+										<BarChart3 size={16} /> View analytics
+									</button>
+								</div>
+							</div>
+						)}
+						{modal === "edit" && selected && (
+							<form className="modal-form" onSubmit={saveEdit}>
+								<label>
+									Short URL
+									<input value={selected.shortUrl} disabled />
+								</label>
+								<label>
+									Destination URL <span>*</span>
+									<input
+										type="url"
+										required
+										value={form.destination}
+										onChange={(e) =>
+											setForm({
+												...form,
+												destination: e.target.value,
+											})
+										}
+									/>
+								</label>
+								<label>
+									Link name
+									<input
+										maxLength="100"
+										value={form.title}
+										onChange={(e) =>
+											setForm({
+												...form,
+												title: e.target.value,
+											})
+										}
+									/>
+								</label>
+								<label>
+									Expiry date <small>OPTIONAL</small>
+									<input
+										type="datetime-local"
+										value={form.expiresAt}
+										onChange={(e) =>
+											setForm({
+												...form,
+												expiresAt: e.target.value,
+											})
+										}
+									/>
+									<em>Leave empty to remove expiry.</em>
+								</label>
+								{error && (
+									<p className="inline-error">{error}</p>
+								)}
+								<button
+									className="primary-btn modal-submit"
+									disabled={saving}
+								>
+									{saving ? "Saving…" : "Save changes"}
+								</button>
+							</form>
+						)}
+						{modal === "qr" && selected && (
+							<div className="qr-content">
+								<div className="qr-frame">
+									{qrData && (
+										<img
+											src={qrData}
+											alt={`QR code for ${selected.shortUrl}`}
+										/>
+									)}
+								</div>
+								<strong>{selected.shortUrl}</strong>
+								<p>
+									Scan to open this short link. The QR code
+									never expires separately from the link.
+								</p>
+								<button
+									className="primary-btn full-btn"
+									onClick={() => {
+										const a = document.createElement("a");
+										a.href = qrData;
+										a.download = `linkcraft-${selected.alias}-qr.png`;
+										a.click();
+									}}
+								>
+									Download QR code{" "}
+									<ArrowDownRight size={16} />
+								</button>
+							</div>
+						)}
+						{modal === "analytics" && (
+							<div className="analytics-content">
+								{!analytics ? (
+									<div className="empty-state analytics-loading">
+										<LoaderCircle
+											className="spin"
+											size={24}
+										/>
+										<span>Loading analytics…</span>
+									</div>
+								) : (
+									<>
+										<div className="analytics-url">
+											<div className="favicon-box">
+												{initials(
+													analytics.link.destination,
+												)}
+											</div>
+											<div>
+												<strong>
+													{analytics.link.alias}
+												</strong>
+												<span>
+													{analytics.link.destination}
+												</span>
+											</div>
+											<button
+												className="icon-btn"
+												onClick={() =>
+													copy(
+														analytics.link.shortUrl,
+													)
+												}
+											>
+												<Copy size={16} />
+											</button>
+										</div>
+										<div className="analytics-kpis">
+											<div>
+												<span>
+													Clicks in last 30 days
+												</span>
+												<strong>
+													{fmt(
+														analytics.clicksInRange,
+													)}
+												</strong>
+											</div>
+											<div>
+												<span>All-time clicks</span>
+												<strong>
+													{fmt(
+														analytics.link
+															.totalClicks,
+													)}
+												</strong>
+											</div>
+											<div>
+												<span>Link status</span>
+												<strong className="kpi-status">
+													{analytics.link.expired
+														? "Expired"
+														: analytics.link.enabled
+															? "Active"
+															: "Disabled"}
+												</strong>
+											</div>
+										</div>
+										<section className="chart-card">
+											<div className="chart-head">
+												<div>
+													<h3>Click activity</h3>
+													<p>
+														Daily clicks over the
+														last{" "}
+														{analytics.rangeDays}{" "}
+														days
+													</p>
+												</div>
+												<span className="chart-legend">
+													<i /> Clicks
+												</span>
+											</div>
+											<div className="chart-area">
+												{analytics.daily.length ? (
+													<ResponsiveContainer
+														width="100%"
+														height="100%"
+													>
+														<AreaChart
+															data={
+																analytics.daily
+															}
+															margin={{
+																top: 12,
+																right: 8,
+																left: -18,
+																bottom: 0,
+															}}
+														>
+															<defs>
+																<linearGradient
+																	id="clickFill"
+																	x1="0"
+																	y1="0"
+																	x2="0"
+																	y2="1"
+																>
+																	<stop
+																		offset="0%"
+																		stopColor="#a78bfa"
+																		stopOpacity={
+																			0.28
+																		}
+																	/>
+																	<stop
+																		offset="100%"
+																		stopColor="#a78bfa"
+																		stopOpacity={
+																			0.01
+																		}
+																	/>
+																</linearGradient>
+															</defs>
+															<CartesianGrid
+																stroke="#292d39"
+																strokeDasharray="3 4"
+																vertical={false}
+															/>
+															<XAxis
+																dataKey="_id"
+																tickFormatter={(
+																	v,
+																) =>
+																	shortDate(v)
+																}
+																tick={{
+																	fill: "#858a9b",
+																	fontSize: 11,
+																}}
+																axisLine={false}
+																tickLine={false}
+																minTickGap={24}
+															/>
+															<YAxis
+																allowDecimals={
+																	false
+																}
+																tick={{
+																	fill: "#858a9b",
+																	fontSize: 11,
+																}}
+																axisLine={false}
+																tickLine={false}
+															/>
+															<Tooltip
+																contentStyle={{
+																	background:
+																		"#171a23",
+																	border: "1px solid #333746",
+																	borderRadius: 10,
+																	color: "#f4f5f7",
+																}}
+																labelFormatter={(
+																	v,
+																) =>
+																	shortDate(v)
+																}
+															/>
+															<Area
+																type="monotone"
+																dataKey="clicks"
+																stroke="#a78bfa"
+																strokeWidth={
+																	2.5
+																}
+																fill="url(#clickFill)"
+															/>
+														</AreaChart>
+													</ResponsiveContainer>
+												) : (
+													<div className="chart-empty">
+														No clicks recorded in
+														this period yet.
+													</div>
+												)}
+											</div>
+										</section>
+										<div className="breakdown-grid">
+											<Breakdown
+												title="Top referrers"
+												rows={analytics.referrers}
+												total={analytics.clicksInRange}
+												icon={<Globe2 size={16} />}
+											/>
+											<Breakdown
+												title="Devices"
+												rows={analytics.devices}
+												total={analytics.clicksInRange}
+												icon={<Smartphone size={16} />}
+											/>
+											<Breakdown
+												title="Browsers"
+												rows={analytics.browsers}
+												total={analytics.clicksInRange}
+												icon={<Activity size={16} />}
+											/>
+										</div>
+									</>
+								)}
+							</div>
+						)}
+						{modal === "help" && (
+							<div className="help-content">
+								<div className="form-note">
+									<ShieldCheck size={18} />
+									<span>
+										<strong>Private by design.</strong> Your
+										links are not tied to an account. The
+										browser keeps management keys locally,
+										and the server stores only their SHA-256
+										hashes.
+									</span>
+								</div>
+								<h3>Keep access to your links</h3>
+								<ol>
+									<li>
+										Use <strong>Recovery keys</strong> in
+										the sidebar to export a JSON backup.
+									</li>
+									<li>
+										Store that file somewhere private.
+										Anyone with a key can manage its
+										associated link.
+									</li>
+									<li>
+										To restore on another browser, import
+										isn't implemented in this first version;
+										you can keep the keys as a recovery
+										record.
+									</li>
+								</ol>
+								<h3>What analytics collect</h3>
+								<p>
+									Click time, referrer hostname, device
+									category and browser name. This
+									implementation does not store raw IP
+									addresses.
+								</p>
+								<h3>Current limitations</h3>
+								<p>
+									Link creation is rate-limited per IP rather
+									than per user because anonymous visitors
+									have no account identity. Production
+									deployment should add a distributed
+									rate-limit store, bot filtering and
+									monitoring.
+								</p>
+								<button
+									className="primary-btn full-btn"
+									onClick={() => setModal("")}
+								>
+									Got it
+								</button>
+							</div>
+						)}
+					</section>
+				</div>
+			)}
+		</div>
+	);
 }
-function Stat({ icon, label, value, note }) { return <article className="stat-card"><div className="stat-top"><span>{label}</span><span className="stat-icon">{icon}</span></div><strong className="stat-value">{value}</strong><div className="stat-bottom"><span className="stat-indicator"><ArrowUpRight size={13}/></span><span>{note}</span></div></article>; }
-function Breakdown({ title, rows, total, icon }) { const safeRows = rows?.length ? rows : [{ _id: 'No data yet', clicks: 0 }]; return <section className="breakdown-card"><h3>{icon}{title}</h3><div className="breakdown-rows">{safeRows.map((row, i) => <div className="breakdown-row" key={row._id}><div className="breakdown-name"><span className="row-rank">{i + 1}</span><span title={row._id}>{row._id || 'Unknown'}</span></div><div className="breakdown-value"><strong>{fmt(row.clicks)}</strong><span>{total ? Math.round(row.clicks / total * 100) : 0}%</span></div><div className="breakdown-track"><span style={{ width: `${total ? row.clicks / total * 100 : 0}%` }}/></div></div>)}</div></section>; }
+function Stat({ icon, label, value, note }) {
+	return (
+		<article className="stat-card">
+			<div className="stat-top">
+				<span>{label}</span>
+				<span className="stat-icon">{icon}</span>
+			</div>
+			<strong className="stat-value">{value}</strong>
+			<div className="stat-bottom">
+				<span className="stat-indicator">
+					<ArrowUpRight size={13} />
+				</span>
+				<span>{note}</span>
+			</div>
+		</article>
+	);
+}
+function Breakdown({ title, rows, total, icon }) {
+	const safeRows = rows?.length ? rows : [{ _id: "No data yet", clicks: 0 }];
+	return (
+		<section className="breakdown-card">
+			<h3>
+				{icon}
+				{title}
+			</h3>
+			<div className="breakdown-rows">
+				{safeRows.map((row, i) => (
+					<div className="breakdown-row" key={row._id}>
+						<div className="breakdown-name">
+							<span className="row-rank">{i + 1}</span>
+							<span title={row._id}>{row._id || "Unknown"}</span>
+						</div>
+						<div className="breakdown-value">
+							<strong>{fmt(row.clicks)}</strong>
+							<span>
+								{total
+									? Math.round((row.clicks / total) * 100)
+									: 0}
+								%
+							</span>
+						</div>
+						<div className="breakdown-track">
+							<span
+								style={{
+									width: `${total ? (row.clicks / total) * 100 : 0}%`,
+								}}
+							/>
+						</div>
+					</div>
+				))}
+			</div>
+		</section>
+	);
+}
