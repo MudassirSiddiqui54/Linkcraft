@@ -1,0 +1,22 @@
+import 'dotenv/config';
+import crypto from 'node:crypto';
+import { connectDB } from './config/db.js';
+import Link from './models/Link.js';
+import Click from './models/Click.js';
+import { hashToken } from './middleware/ownerAuth.js';
+
+await connectDB();
+const aliases = ['welcome-demo', 'docs-demo', 'portfolio-demo'];
+await Click.deleteMany({ linkId: { $in: (await Link.find({ alias: { $in: aliases } }).select('_id')).map(x => x._id) } });
+await Link.deleteMany({ alias: { $in: aliases } });
+const token = crypto.randomBytes(32).toString('base64url');
+const link = await Link.create({ alias: 'welcome-demo', destination: 'https://example.com/', title: 'Welcome demo link', ownerTokenHash: hashToken(token), totalClicks: 0 });
+const events = [];
+for (let i = 0; i < 42; i++) events.push({ linkId: link._id, clickedAt: new Date(Date.now() - Math.random() * 25 * 86400000), referrer: ['Direct / Unknown', 'google.com', 'github.com', 'linkedin.com'][i % 4], device: ['Desktop', 'Mobile', 'Tablet'][i % 3], browser: ['Chrome', 'Firefox', 'Safari'][i % 3] });
+await Click.insertMany(events);
+link.totalClicks = events.length; await link.save();
+console.log('\nDemo link created:');
+console.log(`Short URL: ${(process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 5000}`).replace(/\/$/, '')}/${link.alias}`);
+console.log(`Management key (save this; it cannot be recovered): ${token}`);
+console.log('The demo link is available to manage only with the key above.');
+await (await import('mongoose')).default.disconnect();
